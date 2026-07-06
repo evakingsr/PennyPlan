@@ -1,5 +1,5 @@
 import os
-from detenv import load_dotenv
+from dotenv import load_dotenv
 from supabase import create_client
 
 load_dotenv()
@@ -10,7 +10,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def sign_up_user(email, password, name):
-    response = supabase.auth.sign_op({
+    response = supabase.auth.sign_up({
         "email" : email,
         "password" : password,
         "options" : {
