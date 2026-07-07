@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.plaid_client import sync_transactions
+from services.plaid import sync_transactions
 from database import supabase
 
 transactions_bp = Blueprint('transactions', __name__)

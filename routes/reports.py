@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from database import get_expenses
 from services.aggregator import aggregate_spending
-from services.gemini_client import generate_report
+from services.gemini import generate_report
 
 reports_bp = Blueprint('reports', __name__)
 

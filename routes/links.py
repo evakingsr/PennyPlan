@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.plaid_client import create_link_token, exchange_public_token
+from services.plaid import create_link_token, exchange_public_token
 from database import supabase
 
 link_bp = Blueprint('link', __name__)
