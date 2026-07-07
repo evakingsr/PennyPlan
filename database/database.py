@@ -19,7 +19,7 @@ def sign_up_user(email, password, name):
             }
         }
     })
-    return response
+    return response.data
 
 def login_user(email, password):
     response = supabase.auth.sign_in_with_password({
@@ -29,7 +29,7 @@ def login_user(email, password):
     return response
 
 def get_user_id(login_response):
-    return login_response.user.user_id
+    return login_response.user.id
 
 def get_profile(user_id):
     response = (
@@ -43,19 +43,19 @@ def get_profile(user_id):
 def update_monthly_income(user_id, monthly_income):
     response = (
         supabase.table("profiles")
-        .update("monthly_income": monthly_income})
+        .update({"monthly_income": monthly_income})
         .eq("id", user_id)
         .execute()
     )
     return response.data
 
 def add_budget(user_id, category, monthly_limit):
-    reponse = supabase.table("budgets").insert({
+    response = supabase.table("budgets").insert({
         "user_id" : user_id,
-        "category" : cvategory,
+        "category" : category,
         "monthly_limit" : monthly_limit
     }).execute()
-    return response.data
+    return response
 
 def get_budgets(user_id):
     response = (
@@ -66,13 +66,13 @@ def get_budgets(user_id):
     )
     return response.data
 
-def add_expense(user_id, category, description, amount, expense_data):
+def add_expense(user_id, category, description, amount, expense_date):
     response = supabase.table("expenses").insert({
         "user_id" : user_id,
         "category" : category,
         "description" : description,
         "amount" : amount,
-        "expense_date" : expense_data
+        "expense_date" : expense_date
     }).execute()
     return response.data
 
@@ -87,7 +87,7 @@ def get_expenses(user_id):
 
 def delete_expense(expense_id):
     response = (
-        supabase.tables("expenses")
+        supabase.table("expenses")
         .delete()
         .eq("id", expense_id)
         .execute()
