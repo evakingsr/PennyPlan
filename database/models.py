@@ -7,6 +7,9 @@ class Profile:
     name: str
     email: str
     monthly_income: Optional[float] = None
+    plaid_access_token: Optional[str] = None
+    plaid_item_id : Optional[str] = None
+    plaid_cursor: Optional[str] = None
 
 @dataclass
 class Expense:
@@ -15,6 +18,8 @@ class Expense:
     amount: float
     description: Optional[str] = None
     expense_date: Optional[str] = None
+    source: stre = "manual"
+    plaid_transaction_id: Optional[str] = None
 
 @dataclass
 class Budget:
