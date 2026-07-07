@@ -93,3 +93,17 @@ def delete_expense(expense_id):
         .execute()
     )
     return response.data
+
+def update_expense(expense_id, category, description, amount, expense_date):
+    response = (
+        supabase.table("expenses")
+        .update({
+            "category" : category,
+            "description" : description,
+            "amount" : amount,
+            "expense_date" : expense_date
+        })
+        .eq("id", expense_id)
+        .execute()
+    )
+    return response.data
