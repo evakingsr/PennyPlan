@@ -43,7 +43,7 @@ def get_profile(user_id):
 def update_monthly_income(user_id, monthly_income):
     response = (
         supabase.table("profiles")
-        .update({"monthly_income": montgly_income})
+        .update("monthly_income": monthly_income})
         .eq("id", user_id)
         .execute()
     )
