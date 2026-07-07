@@ -72,7 +72,7 @@ def add_expense(user_id, category, description, amount, expense_date):
         "category" : category,
         "description" : description,
         "amount" : amount,
-        "expense_date" : expense_date
+        "expense_date" : expense_date,
         "source" : "manual"
     }).execute()
     return response.data
