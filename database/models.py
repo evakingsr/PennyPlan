@@ -18,7 +18,7 @@ class Expense:
     amount: float
     description: Optional[str] = None
     expense_date: Optional[str] = None
-    source: stre = "manual"
+    source: str = "manual"
     plaid_transaction_id: Optional[str] = None
 
 @dataclass
