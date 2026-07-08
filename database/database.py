@@ -196,7 +196,7 @@ def save_plaid_credentials(user_id, plaid_access_token, plaid_item_id, plaid_cur
 def get_plaid_credentials(user_id):
     response = (
         supabase.table("profiles")
-        .select("plaid_access_token", "plaid_item_id", "plaid_cursor")
+        .select("plaid_access_token, plaid_item_id, plaid_cursor")
         .eq("id", user_id)
         .execute()
     )
