@@ -19,7 +19,7 @@ def sign_up_user(email, password, name):
             }
         }
     })
-    return response.data
+    return response
 
 def login_user(email, password):
     response = supabase.auth.sign_in_with_password({
