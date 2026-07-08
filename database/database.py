@@ -55,7 +55,7 @@ def add_budget(user_id, category, monthly_limit):
         "category" : category,
         "monthly_limit" : monthly_limit
     }).execute()
-    return response
+    return response.data
 
 def get_budgets(user_id):
     response = (
@@ -110,7 +110,7 @@ def update_expense(expense_id, category, description, amount, expense_date):
     )
     return response.data
 
-def update_budget(budget_id, category, mnonthly_limit):
+def update_budget(budget_id, category, monthly_limit):
     response = (
         supabase.table("budgets")
         .update({
