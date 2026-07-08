@@ -131,6 +131,55 @@ def delete_budget(budget_id):
     )
     return response.data
 
+def compare_budget_vs_actual(user_id):
+    budgets_response = (
+        supabase.table("budgets")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    expenses_response = (
+        supabase.table("expenses")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    budgets = budgets_response.data
+    expenses = expenses_response.data
+
+    spending_by_category = {}
+
+    for expense in expenses:
+        category = expense["category"]
+        amount = float(expense["amount"])
+
+        if category not in spending_by_category:
+            spending_by_category[category] = 0.0
+
+    comparison = []
+
+    for budget in budgets:
+        category = budget["category"]
+        monthly_limit = float(budget["monthly_limit"])
+        spent = spending_by_category.get(category, 0.0)
+        remaining = monthly_limit - spent
+
+        if remaining >= 0:
+            status = "Under Budget"
+        else:
+            status = "Over Budget"
+
+        comparison.append({
+            "category": category,
+            "budget": monthly_limit,
+            "spent": spent,
+            "remaining": remaining,
+            "status": status
+        })
+    return comparison
+    
 def save_plaid_credentials(user_id, plaid_access_token, plaid_item_id, plaid_cursor=None):
     response = (
         supabase.table("profiles")
