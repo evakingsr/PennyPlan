@@ -1,3 +1,4 @@
 .env
 .codio
-__pycache__
+__pycache__/
+*.pyc
