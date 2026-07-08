@@ -5,9 +5,9 @@ from supabase import create_client
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 def sign_up_user(email, password, name):
     response = supabase.auth.sign_up({
@@ -19,7 +19,7 @@ def sign_up_user(email, password, name):
             }
         }
     })
-    return response.data
+    return response
 
 def login_user(email, password):
     response = supabase.auth.sign_in_with_password({
@@ -55,7 +55,7 @@ def add_budget(user_id, category, monthly_limit):
         "category" : category,
         "monthly_limit" : monthly_limit
     }).execute()
-    return response
+    return response.data
 
 def get_budgets(user_id):
     response = (
@@ -66,13 +66,15 @@ def get_budgets(user_id):
     )
     return response.data
 
-def add_expense(user_id, category, description, amount, expense_date):
+def add_expense(user_id, category, description, amount, expense_date, source="manual", plaid_transaction_id=None):
     response = supabase.table("expenses").insert({
         "user_id" : user_id,
         "category" : category,
         "description" : description,
         "amount" : amount,
-        "expense_date" : expense_date
+        "expense_date" : expense_date,
+        "source" : source,
+        "plaid_transaction_id" : plaid_transaction_id
     }).execute()
     return response.data
 
@@ -107,3 +109,108 @@ def update_expense(expense_id, category, description, amount, expense_date):
         .execute()
     )
     return response.data
+
+def update_budget(budget_id, category, monthly_limit):
+    response = (
+        supabase.table("budgets")
+        .update({
+            "category": category,
+            "monthly_limit": monthly_limit
+        })
+        .eq("id", budget_id)
+        .execute()
+    )
+    return response.data
+
+def delete_budget(budget_id):
+    response = (
+        supabase.table("budgets")
+        .delete()
+        .eq("id", budget_id)
+        .execute()
+    )
+    return response.data
+
+def compare_budget_vs_actual(user_id):
+    budgets_response = (
+        supabase.table("budgets")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    expenses_response = (
+        supabase.table("expenses")
+        .select("*")
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    budgets = budgets_response.data
+    expenses = expenses_response.data
+
+    spending_by_category = {}
+
+    for expense in expenses:
+        category = expense["category"]
+        amount = float(expense["amount"])
+
+        if category not in spending_by_category:
+            spending_by_category[category] = 0.0
+
+    comparison = []
+
+    for budget in budgets:
+        category = budget["category"]
+        monthly_limit = float(budget["monthly_limit"])
+        spent = spending_by_category.get(category, 0.0)
+        remaining = monthly_limit - spent
+
+        if remaining >= 0:
+            status = "Under Budget"
+        else:
+            status = "Over Budget"
+
+        comparison.append({
+            "category": category,
+            "budget": monthly_limit,
+            "spent": spent,
+            "remaining": remaining,
+            "status": status
+        })
+    return comparison
+    
+def save_plaid_credentials(user_id, plaid_access_token, plaid_item_id, plaid_cursor=None):
+    response = (
+        supabase.table("profiles")
+        .update({
+            "plaid_access_token": plaid_access_token,
+            "plaid_item_id": plaid_item_id,
+            "plaid_cursor": plaid_cursor
+        })
+        .eq("id", user_id)
+        .execute()
+    )
+    return response.data
+
+def get_plaid_credentials(user_id):
+    response = (
+        supabase.table("profiles")
+        .select("plaid_access_token, plaid_item_id, plaid_cursor")
+        .eq("id", user_id)
+        .execute()
+    )
+    return response.data
+
+def create_user_admin(email, password, name):
+    """
+    Creates a user directly via the admin API — no email sent, no rate limit.
+    Use this for test/demo accounts instead of sign_up_user().
+    """
+    response = supabase.auth.admin.create_user({
+        "email": email,
+        "password": password,
+        "email_confirm": True,
+        "user_metadata": {"name": name}
+    })
+    return response
