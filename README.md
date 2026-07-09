@@ -36,7 +36,7 @@ PennyPlan is an AI-powered personal budgeting application that helps users track
 
 - Python 3
 - Flask 
-- [Supabase (Database & Authentication)]((https://supabase.com/?utm_source=google&utm_medium=cpc&utm_campaign=23317752603&device=c&gad_source=1&gad_campaignid=23317752603&gbraid=0AAAAA_fjjDnmPT8_vlOsQE9eIjaC0tmaF&gclid=Cj0KCQjwjb3SBhDgARIsAMKiWzglb17DoVklp-jIS9NRxNMvYZsk2UB_iIQG0LyXVq5pCbesSj7HsJ4aAnPFEALw_wcB))
+- [Supabase (Database & Authentication)](https://supabase.com/?utm_source=google&utm_medium=cpc&utm_campaign=23317752603&device=c&gad_source=1&gad_campaignid=23317752603&gbraid=0AAAAA_fjjDnmPT8_vlOsQE9eIjaC0tmaF&gclid=Cj0KCQjwjb3SBhDgARIsAMKiWzglb17DoVklp-jIS9NRxNMvYZsk2UB_iIQG0LyXVq5pCbesSj7HsJ4aAnPFEALw_wcB)
 - [Plaid API](https://plaid.com/?utm_source=Google&utm_medium=paid&utm_campaign=DEPT_SEM_Google_Brand_ACQ_Performance_NAMER_US-CA_Core_CPA-ROAS_BAU_Mix&utm_term=Core_KW-Mix_Plaid-General&utm_content=plaid%20api&gad_source=1&gad_campaignid=22638934715&gbraid=0AAAAADfKQwoHUeLGgPFjLBI6M8lWsm2-4&gclid=Cj0KCQjwjb3SBhDgARIsAMKiWzjDTLcSmaqC0Jleg6SHQOvBVQrIEBaXbsNwBv4iRhG43WnWfeoipL8aAuuaEALw_wcB)
 - [Google Gemini API](https://ai.google.dev/gemini-api/docs)
 - HTML
