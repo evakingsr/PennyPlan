@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PennyPlan — Home</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="pennyplan.css" />
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+    <script src="shared.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const { useState, useEffect } = React;
+
+      const seedExpenses = () => ([
+        { id: "d1", category: "Groceries", description: "Trader Joe's", amount: 82.4, expense_date: "2026-07-02", source: "manual" },
+        { id: "d2", category: "Dining", description: "Chipotle", amount: 14.25, expense_date: "2026-07-03", source: "manual" },
+        { id: "d3", category: "Transport", description: "Metro card", amount: 30, expense_date: "2026-07-04", source: "manual" },
+      ]);
+
+      const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+
+      function monthLabel(yyyymm) {
+        const [year, month] = yyyymm.split("-");
+        return `${MONTH_NAMES[parseInt(month, 10) - 1]} ${year}`;
+      }
+
+      function App() {
+        const [expenses, setExpenses] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [offline, setOffline] = useState(false);
+        const [error, setError] = useState("");
+        const [form, setForm] = useState({
+          category: "Groceries", description: "", amount: "", expense_date: "",
+        });
+
+        useEffect(() => { load(); }, []);
+
+        async function load() {
+          setLoading(true);
+          try {
+            const data = await PennyAPI.getExpenses(getCurrentUserId());
+            setExpenses(Array.isArray(data) ? data : []);
+            setOffline(false);
+          } catch {
+            setExpenses(seedExpenses());
+            setOffline(true);
+          }
+          setLoading(false);
+        }
+
+        const thisMonthPrefix = new Date().toISOString().slice(0, 7);
+        const thisMonthExpenses = expenses.filter((e) => (e.expense_date || "").startsWith(thisMonthPrefix));
+
+        const totalSpent = thisMonthExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+        const count = thisMonthExpenses.length;
+        const avg = count ? totalSpent / count : 0;
+
+        // Group all expenses by "YYYY-MM", newest month first, and sort each
+        // month's expenses newest-first too.
+        const grouped = {};
+        expenses.forEach((e) => {
+          const key = (e.expense_date || "unknown").slice(0, 7);
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(e);
+        });
+        const monthKeys = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+        monthKeys.forEach((key) => {
+          grouped[key].sort((a, b) => (b.expense_date || "").localeCompare(a.expense_date || ""));
+        });
+
+        function handleChange(event) {
+          setForm({ ...form, [event.target.name]: event.target.value });
+        }
+
+        async function submit(event) {
+          event.preventDefault();
+          setError("");
+
+          const amount = parseFloat(form.amount);
+          if (!form.category || isNaN(amount) || amount <= 0) {
+            setError("Please pick a category and enter an amount greater than 0.");
+            return;
+          }
+
+          const payload = {
+            user_id: getCurrentUserId(),
+            category: form.category,
+            description: form.description.trim(),
+            amount,
+            expense_date: form.expense_date || today(),
+            source: "manual",
+          };
+
+          if (offline) {
+            const localExpense = { id: "local-" + expenses.length, ...payload };
+            setExpenses([localExpense, ...expenses]);
+          } else {
+            try {
+              await PennyAPI.addExpense(payload);
+              await load();
+            } catch (err) {
+              setError(err.message);
+              return;
+            }
+          }
+
+          setForm({ category: form.category, description: "", amount: "", expense_date: "" });
+        }
+
+        async function remove(id) {
+          if (offline || String(id).startsWith("local-")) {
+            setExpenses(expenses.filter((e) => e.id !== id));
+            return;
+          }
+          try {
+            await PennyAPI.deleteExpense(id);
+            await load();
+          } catch (err) {
+            setError(err.message);
+          }
+        }
+
+        return (
+          <>
+            <TopBar active="home" />
+            <main className="page">
+              <div className="intro">
+                <h2>Welcome back</h2>
+                <p>Add what you spend and PennyPlan keeps the running totals for you.</p>
+              </div>
+
+              <div className="tiles">
+                <div className="tile bad">
+                  <div className="label">Spent This Month</div>
+                  <div className="value">{money(totalSpent)}</div>
+                </div>
+                <div className="tile">
+                  <div className="label">Expenses This Month</div>
+                  <div className="value">{count}</div>
+                </div>
+                <div className="tile accent">
+                  <div className="label">Average Each</div>
+                  <div className="value">{money(avg)}</div>
+                </div>
+              </div>
+
+              {offline && (
+                <div className="banner info">
+                  Can't reach the backend at {API_BASE}, so this is demo data. Anything you
+                  add stays in the browser only. Start the Flask app to save for real.
+                </div>
+              )}
+              {error && <div className="banner err">{error}</div>}
+
+              <div className="grid-2">
+                <section className="card">
+                  <div className="section-title">Add an Expense</div>
+                  <form onSubmit={submit}>
+                    <div className="field">
+                      <label htmlFor="category">Category</label>
+                      <select id="category" name="category" value={form.category} onChange={handleChange}>
+                        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="description">Description</label>
+                      <input id="description" name="description" type="text" placeholder="e.g. Coffee run"
+                             value={form.description} onChange={handleChange} />
+                    </div>
+
+                    <div className="field-row">
+                      <div className="field">
+                        <label htmlFor="amount">Amount ($)</label>
+                        <input id="amount" name="amount" type="number" step="0.01" min="0" placeholder="0.00"
+                               value={form.amount} onChange={handleChange} required />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="date">Date</label>
+                        <input id="date" name="expense_date" type="date"
+                               value={form.expense_date} onChange={handleChange} />
+                      </div>
+                    </div>
+
+                    <button className="btn" type="submit">Add Expense</button>
+                  </form>
+                </section>
+
+                <section className="card">
+                  <div className="section-title">Recent Expenses</div>
+                  {loading ? (
+                    <p className="empty">Loading…</p>
+                  ) : expenses.length === 0 ? (
+                    <p className="empty">No expenses yet. Add one on the left to get started.</p>
+                  ) : (
+                    monthKeys.map((key) => (
+                      <div key={key} style={{ marginBottom: "18px" }}>
+                        <div style={{ fontSize: "1rem", fontWeight: 800, color: "var(--ink)", textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: "10px" }}>
+                          {key === "unknown" ? "No Date" : monthLabel(key)}
+                        </div>
+                        <ul className="list">
+                          {grouped[key].map((e) => (
+                            <li className="list-item" key={e.id}>
+                              <div>
+                                <div>
+                                  <strong>{e.description || e.category}</strong>{" "}
+                                  <span className="pill">{e.category}</span>
+                                </div>
+                                <div className="meta">{e.expense_date || "—"}</div>
+                              </div>
+                              <span className="amount">{money(e.amount)}</span>
+                              <button className="icon-btn" onClick={() => remove(e.id)} aria-label="Delete">×</button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  )}
+                </section>
+              </div>
+            </main>
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>

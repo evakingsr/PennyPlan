@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PennyPlan — Log In</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="pennyplan.css" />
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+    <script src="shared.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const { useState } = React;
+
+      function App() {
+        const [mode, setMode] = useState("login");
+        const [form, setForm] = useState({ email: "", password: "", name: "" });
+        const [error, setError] = useState("");
+        const [loading, setLoading] = useState(false);
+
+        function handleChange(e) {
+          setForm({ ...form, [e.target.name]: e.target.value });
+        }
+
+        async function submit(e) {
+          e.preventDefault();
+          setError("");
+          setLoading(true);
+          try {
+            const data = mode === "signup"
+              ? await PennyAPI.signup(form)
+              : await PennyAPI.login({ email: form.email, password: form.password });
+
+            setCurrentUserId(data.user_id);
+            window.location.href = "index.html";
+          } catch (err) {
+            setError(err.message || "Something went wrong.");
+          }
+          setLoading(false);
+        }
+
+        return (
+          <>
+            <TopBar active="login" />
+            <main className="page">
+              <div className="intro">
+                <h2>{mode === "signup" ? "Create your account" : "Welcome back"}</h2>
+                <p>{mode === "signup" ? "Sign up to start tracking your spending." : "Log in to see your dashboard."}</p>
+              </div>
+
+              <div className="grid-2" style={{ gridTemplateColumns: "1fr", maxWidth: "420px" }}>
+                <section className="card">
+                  <div className="section-title">{mode === "signup" ? "Sign Up" : "Log In"}</div>
+                  <form onSubmit={submit}>
+                    {mode === "signup" && (
+                      <div className="field">
+                        <label htmlFor="name">Name</label>
+                        <input id="name" name="name" type="text" value={form.name} onChange={handleChange} required />
+                      </div>
+                    )}
+                    <div className="field">
+                      <label htmlFor="email">Email</label>
+                      <input id="email" name="email" type="email" value={form.email} onChange={handleChange} required />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="password">Password</label>
+                      <input id="password" name="password" type="password" value={form.password} onChange={handleChange} required />
+                    </div>
+
+                    {error && <div className="banner err">{error}</div>}
+
+                    <button className="btn" type="submit" disabled={loading}>
+                      {loading ? "Please wait…" : mode === "signup" ? "Sign Up" : "Log In"}
+                    </button>
+                  </form>
+
+                  <p style={{ marginTop: "14px", fontSize: "0.85rem", textAlign: "center" }}>
+                    {mode === "signup" ? (
+                      <>Already have an account?{" "}
+                        <a href="#" onClick={(e) => { e.preventDefault(); setMode("login"); }}>Log in</a>
+                      </>
+                    ) : (
+                      <>Need an account?{" "}
+                        <a href="#" onClick={(e) => { e.preventDefault(); setMode("signup"); }}>Sign up</a>
+                      </>
+                    )}
+                  </p>
+                </section>
+              </div>
+            </main>
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
