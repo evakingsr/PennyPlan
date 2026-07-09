@@ -7,7 +7,7 @@ import time
 
 load_dotenv()
 
-GEMINI_MODELS = ["gemini-2.5-flash", "gemini-3.5-flash"]
+GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash"]
 MAX_ATTEMPTS = 3
 RETRY_SECONDS = 20
 

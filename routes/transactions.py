@@ -23,7 +23,9 @@ def _sync_with_retry(access_token, cursor=None):
 def sync_transactions_route():
     user_id = request.json['user_id']
 
-    credentials = get_plaid_credentials(user_id)
+    credentials_list = get_plaid_credentials(user_id)
+    credentials = credentials_list[0] if credentials_list else None
+
     if not credentials or not credentials.get('plaid_access_token'):
         return jsonify({"error": "No linked bank account for this user"}), 400
 
@@ -51,6 +53,7 @@ def sync_transactions_route():
         credentials['plaid_item_id'],
         plaid_cursor=result['next_cursor']
     )
+
     return jsonify({
         "added": saved_count,
         "has_more": result['has_more'],

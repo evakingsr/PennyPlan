@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PennyPlan — AI Report</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="pennyplan.css" />
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+    <script src="shared.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const { useState } = React;
+
+      function getStoredReport(userId) {
+        const raw = localStorage.getItem("pennyplan_report_" + userId);
+        return raw ? JSON.parse(raw) : null;
+      }
+
+      function storeReport(userId, report) {
+        localStorage.setItem("pennyplan_report_" + userId, JSON.stringify(report));
+      }
+
+      function App() {
+        const userId = getCurrentUserId();
+        const [report, setReport] = useState(() => getStoredReport(userId));
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState("");
+        const [syncing, setSyncing] = useState(false);
+        const [syncMessage, setSyncMessage] = useState("");
+
+        async function loadReport() {
+          setLoading(true);
+          setError("");
+          try {
+            const data = await PennyAPI.getReport(userId);
+            setReport(data);
+            storeReport(userId, data);
+          } catch (err) {
+            setError("Couldn't load your report: " + err.message);
+          }
+          setLoading(false);
+        }
+
+        async function connectBank() {
+          setError("");
+          try {
+            const { link_token } = await PennyAPI.createLinkToken(userId);
+            const handler = Plaid.create({
+              token: link_token,
+              onSuccess: async (public_token) => {
+                await PennyAPI.exchangeToken(userId, public_token);
+                await doSync();
+              },
+            });
+            handler.open();
+          } catch (err) {
+            setError("Couldn't start Plaid Link: " + err.message);
+          }
+        }
+
+        async function doSync() {
+          setSyncing(true);
+          setSyncMessage("Importing your transactions…");
+          try {
+            const result = await PennyAPI.syncTransactions(userId);
+            setSyncMessage(`Imported ${result.added} transaction${result.added === 1 ? "" : "s"}.`);
+          } catch (err) {
+            setSyncMessage("");
+            setError("Sync failed: " + err.message);
+          }
+          setSyncing(false);
+        }
+
+        return (
+          <>
+            <TopBar active="report" />
+            <main className="page">
+              <div className="intro">
+                <h2>Your AI Spending Report</h2>
+                <p>Connect your bank or add expenses manually, then generate personalized insights.</p>
+              </div>
+
+              <div className="tiles" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                <div className="tile accent tile-button">
+                  <button className="btn small" style={{ background: "transparent", border: "1px solid var(--white)" }} onClick={connectBank}>
+                    Connect Bank (Plaid)
+                  </button>
+                </div>
+                <div className="tile tile-button">
+                  <button className="btn small" style={{ background: "transparent", border: "1px solid var(--white)" }} onClick={doSync} disabled={syncing}>
+                    {syncing ? "Syncing…" : "Sync Transactions"}
+                  </button>
+                </div>
+                <div className="tile good tile-button">
+                  <button className="btn small" style={{ background: "transparent", border: "1px solid var(--white)" }} onClick={loadReport} disabled={loading}>
+                    {loading ? "Generating…" : report ? "Regenerate Report" : "Generate Report"}
+                  </button>
+                </div>
+              </div>
+
+              {syncMessage && <div className="banner ok">{syncMessage}</div>}
+              {error && <div className="banner err">{error}</div>}
+
+              <section className="card">
+                <div className="section-title">Summary</div>
+                {report ? (
+                  <>
+                    <p>{report.summary}</p>
+
+                    {report.trends && report.trends.length > 0 && (
+                      <div style={{ marginTop: "18px" }}>
+                        <div className="section-title" style={{ fontSize: "0.95rem" }}>Trends</div>
+                        <ul className="list">
+                          {report.trends.map((t, i) => (
+                            <li className="list-item" key={i}>
+                              <div><strong>{t.category}</strong></div>
+                              <span style={{ color: t.direction === "up" ? "var(--bad)" : "var(--good)" }}>
+                                {t.direction === "up" ? "▲" : "▼"} {Math.abs(t.change_percent)}%
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {report.tips && report.tips.length > 0 && (
+                      <div style={{ marginTop: "18px" }}>
+                        <div className="section-title" style={{ fontSize: "0.95rem" }}>Tips</div>
+                        <ul style={{ paddingLeft: "20px" }}>
+                          {report.tips.map((tip, i) => <li key={i} style={{ marginBottom: "8px" }}>{tip}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="empty">Click "Generate Report" above to see your AI spending insights.</p>
+                )}
+              </section>
+            </main>
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>

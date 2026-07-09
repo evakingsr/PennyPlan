@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from supabase import create_client
+from datetime import date, datetime, timedelta
 
 load_dotenv()
 
@@ -131,6 +132,11 @@ def delete_budget(budget_id):
     )
     return response.data
 
+def _parse_expense_date(value):
+    if isinstance(value, date):
+        return value
+    return datetime.fromisoformat(value).date()
+
 def compare_budget_vs_actual(user_id):
     budgets_response = (
         supabase.table("budgets")
@@ -138,7 +144,6 @@ def compare_budget_vs_actual(user_id):
         .eq("user_id", user_id)
         .execute()
     )
-
     expenses_response = (
         supabase.table("expenses")
         .select("*")
@@ -148,28 +153,26 @@ def compare_budget_vs_actual(user_id):
 
     budgets = budgets_response.data
     expenses = expenses_response.data
+    
+    today = date.today()
+    first_of_month = today.replace(day=1)
 
     spending_by_category = {}
-
     for expense in expenses:
+        expense_date = _parse_expense_date(expense["expense_date"])
+        if expense_date < first_of_month:
+            continue
         category = expense["category"]
         amount = float(expense["amount"])
-
-        if category not in spending_by_category:
-            spending_by_category[category] = 0.0
+        spending_by_category[category] = spending_by_category.get(category, 0.0) + amount
 
     comparison = []
-
     for budget in budgets:
         category = budget["category"]
         monthly_limit = float(budget["monthly_limit"])
         spent = spending_by_category.get(category, 0.0)
         remaining = monthly_limit - spent
-
-        if remaining >= 0:
-            status = "Under Budget"
-        else:
-            status = "Over Budget"
+        status = "Under Budget" if remaining >= 0 else "Over Budget"
 
         comparison.append({
             "category": category,
@@ -178,8 +181,8 @@ def compare_budget_vs_actual(user_id):
             "remaining": remaining,
             "status": status
         })
-    return comparison
-    
+    return comparison 
+
 def save_plaid_credentials(user_id, plaid_access_token, plaid_item_id, plaid_cursor=None):
     response = (
         supabase.table("profiles")
