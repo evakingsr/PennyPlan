@@ -45,7 +45,7 @@ PennyPlan is an AI-powered personal budgeting application that helps users track
 - JavaScript
 
 ------------------
-
+changes
 ## Contact
 
 For questions, suggestions, or collaborative opportunities, please contact:
