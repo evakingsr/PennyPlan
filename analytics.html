@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PennyPlan — Analytics</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="pennyplan.css" />
+
+    <!-- React + Babel from a CDN (no build step). Versions are pinned so a
+         future CDN update can't break the page. -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+
+    <!-- Shared helpers. -->
+    <script src="shared.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+      const { useState, useEffect } = React;
+
+      // Demo data shown when the backend is unreachable, so the charts always render.
+      const seedExpenses = () => ([
+        { id: "d1", category: "Groceries", amount: 127.5, expense_date: "2026-07-02" },
+        { id: "d2", category: "Dining", amount: 53.15, expense_date: "2026-07-03" },
+        { id: "d3", category: "Transport", amount: 30, expense_date: "2026-07-04" },
+        { id: "d4", category: "Entertainment", amount: 22, expense_date: "2026-07-06" },
+      ]);
+      const seedCompare = () => ([
+        { category: "Groceries", budget: 200, spent: 127.5, remaining: 72.5, status: "Under Budget" },
+        { category: "Dining", budget: 40, spent: 53.15, remaining: -13.15, status: "Over Budget" },
+        { category: "Transport", budget: 60, spent: 30, remaining: 30, status: "Under Budget" },
+        { category: "Entertainment", budget: 50, spent: 22, remaining: 28, status: "Under Budget" },
+      ]);
+
+      // ------------------------------------------------------------------
+      // Donut chart. It draws each category as a colored arc on a ring.
+      // On hover it calls onHover(slice, event) so the page can show a tooltip.
+      // ------------------------------------------------------------------
+      function Donut({ data, onHover, hoveredLabel }) {
+        // Total of all values; the "|| 1" avoids dividing by zero.
+        const total = data.reduce((s, d) => s + d.value, 0) || 1;
+
+        // Ring geometry. We draw arcs by using a circle's stroke dash.
+        const R = 70, CENTER = 90, stroke = 26;
+        const circumference = 2 * Math.PI * R;
+        let offset = 0;   // how far around the ring the next slice starts
+
+        return (
+          <svg width="180" height="180" viewBox="0 0 180 180">
+            {/* Faint full ring behind the slices. */}
+            <circle cx={CENTER} cy={CENTER} r={R} fill="none" stroke="#e6ecea" strokeWidth={stroke} />
+
+            {data.map((d, i) => {
+              const fraction = d.value / total;
+              const dash = fraction * circumference;   // arc length for this slice
+              const slice = (
+                <circle
+                  key={d.label}
+                  cx={CENTER} cy={CENTER} r={R}
+                  fill="none"
+                  stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                  strokeWidth={stroke}
+                  strokeDasharray={`${dash} ${circumference - dash}`}
+                  strokeDashoffset={-offset}
+                  transform={`rotate(-90 ${CENTER} ${CENTER})`}
+                  className={"donut-slice" + (hoveredLabel && hoveredLabel !== d.label ? " dim" : "")}
+                  onMouseEnter={(e) => onHover(d, e)}
+                  onMouseMove={(e) => onHover(d, e)}
+                  onMouseLeave={() => onHover(null)}
+                />
+              );
+              offset += dash;   // move the start point for the next slice
+              return slice;
+            })}
+
+            {/* Total shown in the middle of the ring. */}
+            <text x={CENTER} y={CENTER - 4} textAnchor="middle" fontWeight="800" fontSize="20" fill="#183c40">
+              {money(total).replace(".00", "")}
+            </text>
+            <text x={CENTER} y={CENTER + 16} textAnchor="middle" fontSize="11" fill="#6b7d7f">total spent</text>
+          </svg>
+        );
+      }
+
+      // The whole analytics page.
+      function App() {
+        // ---- State ----
+        const [expenses, setExpenses] = useState([]);   // raw expenses (for the donut)
+        const [compare, setCompare] = useState([]);      // budget-vs-actual rows (for the bars)
+        const [offline, setOffline] = useState(false);
+        const [error, setError] = useState("");
+        const [budgetForm, setBudgetForm] = useState({ category: "Groceries", monthly_limit: "" });
+
+        // The hover tooltip. Null means "nothing hovered, hide it".
+        // When set it holds: position (x, y), a title, and rows to list.
+        const [tip, setTip] = useState(null);
+        // Which donut slice is hovered, so we can fade the others.
+        const [hovered, setHovered] = useState(null);
+
+        // Load everything once when the page opens.
+        useEffect(() => { load(); }, []);
+
+        // Fetch expenses AND the budget comparison; fall back to demo data if down.
+        async function load() {
+          let wentOffline = false;
+
+          try {
+            const ex = await PennyAPI.getExpenses(DEMO_USER_ID);
+            setExpenses(Array.isArray(ex) ? ex : []);
+          } catch {
+            setExpenses(seedExpenses());
+            wentOffline = true;
+          }
+
+          try {
+            const cmp = await PennyAPI.compareBudgets(DEMO_USER_ID);
+            setCompare(Array.isArray(cmp) ? cmp : []);
+          } catch {
+            setCompare(seedCompare());
+            wentOffline = true;
+          }
+
+          setOffline(wentOffline);
+        }
+
+        // Update a budget-form field (inputs have a `name` matching a key).
+        function handleChange(event) {
+          setBudgetForm({ ...budgetForm, [event.target.name]: event.target.value });
+        }
+
+        // Add a budget limit for a category, then reload the comparison.
+        async function addBudget(event) {
+          event.preventDefault();
+          setError("");
+          const limit = parseFloat(budgetForm.monthly_limit);
+          if (isNaN(limit) || limit <= 0) {
+            setError("Enter a monthly limit greater than 0.");
+            return;
+          }
+          if (offline) {
+            setError("Backend is offline — can't save budgets right now.");
+            return;
+          }
+          try {
+            await PennyAPI.addBudget({
+              user_id: DEMO_USER_ID,
+              category: budgetForm.category,
+              monthly_limit: limit,
+            });
+            setBudgetForm({ category: budgetForm.category, monthly_limit: "" });
+            await load();
+          } catch (err) {
+            setError(err.message);
+          }
+        }
+
+        // ---- Prepare data for the donut: total spending per category ----
+        const byCategory = {};
+        expenses.forEach((e) => {
+          byCategory[e.category] = (byCategory[e.category] || 0) + Number(e.amount || 0);
+        });
+        const donutData = Object.entries(byCategory)
+          .map(([label, value]) => ({ label, value }))
+          .sort((a, b) => b.value - a.value);   // biggest slice first
+
+        const total = donutData.reduce((s, d) => s + d.value, 0);
+        // Longest bar = the biggest of any budget or spent amount, so bars scale nicely.
+        const maxBar = Math.max(1, ...compare.map((c) => Math.max(c.budget, c.spent)));
+        const overCount = compare.filter((c) => c.status === "Over Budget").length;
+
+        // Show the tooltip at the mouse position with the given title and rows.
+        function showTip(event, title, rows) {
+          setTip({ x: event.clientX, y: event.clientY, title, rows });
+        }
+
+        return (
+          <>
+            <TopBar active="analytics" />
+            <main className="page">
+              <div className="intro">
+                <h2>Your spending at a glance</h2>
+                <p>Hover any slice or bar to see the exact numbers behind it.</p>
+              </div>
+
+              {/* Summary tiles. */}
+              <div className="tiles">
+                <div className="tile accent">
+                  <div className="label">Total Spent</div>
+                  <div className="value">{money(total)}</div>
+                </div>
+                <div className="tile">
+                  <div className="label">Categories</div>
+                  <div className="value">{donutData.length}</div>
+                </div>
+                <div className={"tile " + (overCount ? "bad" : "good")}>
+                  <div className="label">Over Budget</div>
+                  <div className="value">{overCount}</div>
+                </div>
+              </div>
+
+              {offline && (
+                <div className="banner info">
+                  Can't reach the backend at {API_BASE} — showing demo analytics. Hover the
+                  chart and bars to see how the tooltips work.
+                </div>
+              )}
+              {error && <div className="banner err">{error}</div>}
+
+              <div className="grid-2">
+                {/* Left: set a budget so the comparison has something to show. */}
+                <section className="card">
+                  <div className="section-title">Set a Monthly Budget</div>
+                  <form onSubmit={addBudget}>
+                    <div className="field">
+                      <label htmlFor="bcat">Category</label>
+                      <select id="bcat" name="category" value={budgetForm.category} onChange={handleChange}>
+                        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="blimit">Monthly Limit ($)</label>
+                      <input id="blimit" name="monthly_limit" type="number" step="0.01" min="0" placeholder="0.00"
+                             value={budgetForm.monthly_limit} onChange={handleChange} required />
+                    </div>
+                    <button className="btn" type="submit">Save Budget</button>
+                  </form>
+                </section>
+
+                {/* Right: donut of spending by category (with hover). */}
+                <section className="card">
+                  <div className="section-title">Spending by Category</div>
+                  {donutData.length === 0 ? (
+                    <p className="empty">No spending data yet. Add expenses on the Home page.</p>
+                  ) : (
+                    <div className="donut-wrap">
+                      <Donut
+                        data={donutData}
+                        hoveredLabel={hovered}
+                        onHover={(slice, ev) => {
+                          // Called with a slice on enter/move, and with null on leave.
+                          if (!slice) {
+                            setHovered(null);
+                            setTip(null);
+                            return;
+                          }
+                          setHovered(slice.label);
+                          const share = ((slice.value / total) * 100).toFixed(1) + "%";
+                          showTip(ev, slice.label, [
+                            { label: "Spent", value: money(slice.value) },
+                            { label: "Share", value: share },
+                          ]);
+                        }}
+                      />
+                      {/* Legend: color swatch + category + amount. */}
+                      <div className="legend">
+                        {donutData.map((d, i) => (
+                          <div className="legend-item" key={d.label}>
+                            <span className="swatch" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                            {d.label} — {money(d.value)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              {/* Full-width: budget vs actual bars (with hover). */}
+              <section className="card" style={{ marginTop: "22px" }}>
+                <div className="section-title">Budget vs. Actual</div>
+                {compare.length === 0 ? (
+                  <p className="empty">No budgets yet. Set one on the left to compare against your spending.</p>
+                ) : (
+                  <div className="bars">
+                    {compare.map((c) => {
+                      const over = c.status === "Over Budget";
+                      const pct = Math.min(100, (c.spent / maxBar) * 100);
+                      return (
+                        <div
+                          className="bar-row"
+                          key={c.category}
+                          // Show a tooltip with the numbers when hovering this bar.
+                          // The last row is colored green (remaining) or red (over).
+                          onMouseEnter={(ev) => showTip(ev, c.category, [
+                            { label: "Budget", value: money(c.budget) },
+                            { label: "Spent", value: money(c.spent) },
+                            {
+                              label: over ? "Over by" : "Remaining",
+                              value: money(Math.abs(c.remaining)),
+                              tone: over ? "b" : "g",
+                            },
+                          ])}
+                          onMouseLeave={() => setTip(null)}
+                        >
+                          <span className="bar-label">{c.category}</span>
+                          <div className="bar-track">
+                            <div className="bar-fill"
+                                 style={{ width: pct + "%", background: over ? "var(--bad)" : "var(--ink)" }} />
+                          </div>
+                          <span className="bar-value" style={{ color: over ? "var(--bad)" : "var(--ink)" }}>
+                            {money(c.spent).replace(".00", "")}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </main>
+
+            {/* The floating tooltip itself. Only rendered while hovering. */}
+            {tip && (
+              <div className="tooltip" style={{ left: tip.x, top: tip.y }}>
+                <div className="t-title">{tip.title}</div>
+                {tip.rows.map((row, i) => (
+                  <div className="t-row" key={i}>
+                    <span>{row.label}</span>
+                    <span className={row.tone || ""}>{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>

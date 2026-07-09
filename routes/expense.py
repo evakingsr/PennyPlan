@@ -16,12 +16,16 @@ def create_expense():
     category = data.get("category")
     description = data.get("description")
     amount = data.get("amount")
-    expense_date = data.get("expense _date")
+    expense_date = data.get("expense_date")
+    source = data.get("source", "manual")
+    plaid_transaction_id = data.get("plaid_transaction_id")
 
     if not user_id or not category or amount is None:
         return jsonify({"error": "user_id, category, and amount are required"}), 400
 
-    expense = add_expense(user_id, category, description, amount, expense_date, source, plaid_transaction_id)
+    expense = add_expense(
+        user_id, category, description, amount, expense_date, source, plaid_transaction_id
+    )
     return jsonify({"message": "Expense added", "expense": expense}), 201
 
 @expenses_bp.route("/expenses/<user_id>", methods=["GET"])

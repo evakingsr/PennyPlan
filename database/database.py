@@ -158,6 +158,8 @@ def compare_budget_vs_actual(user_id):
         if category not in spending_by_category:
             spending_by_category[category] = 0.0
 
+        spending_by_category[category] += amount
+
     comparison = []
 
     for budget in budgets:

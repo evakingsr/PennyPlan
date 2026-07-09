@@ -1,131 +1,236 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simple Budget</title>
-  <link rel="stylesheet" href="budget.css" />
-</head>
-<body>
-  <div class="app">
-    <header class="app-header">
-      <h1>Simple Budget</h1>
-      <p class="subtitle">Track your income and expenses</p>
-    </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PennyPlan — Home</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="pennyplan.css" />
 
-    <section class="summary">
-      <div class="summary-card income">
-        <span class="summary-label">Income</span>
-        <span class="summary-value" id="totalIncome">$0.00</span>
-      </div>
-      <div class="summary-card expense">
-        <span class="summary-label">Expenses</span>
-        <span class="summary-value" id="totalExpense">$0.00</span>
-      </div>
-      <div class="summary-card balance">
-        <span class="summary-label">Balance</span>
-        <span class="summary-value" id="balance">$0.00</span>
-      </div>
-    </section>
+    <!-- React + Babel loaded from a CDN so there is NO build step.
+         Babel lets us write JSX (the HTML-looking code) right in the browser.
+         The versions are pinned so a future CDN update can't break the page. -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 
-    <form class="entry-form" id="entryForm">
-      <div class="field">
-        <label for="description">Description</label>
-        <input type="text" id="description" placeholder="e.g. Groceries" required />
-      </div>
+    <!-- Our shared helpers (API_BASE, PennyAPI, TopBar, money, ...). -->
+    <script src="shared.js"></script>
+  </head>
+  <body>
+    <!-- React renders the whole page inside this empty div. -->
+    <div id="root"></div>
 
-      <div class="field">
-        <label for="amount">Amount</label>
-        <input type="number" id="amount" placeholder="0.00" step="0.01" min="0" required />
-      </div>
+    <!-- type="text/babel" tells Babel to compile this script in the browser. -->
+    <script type="text/babel" data-presets="react">
+      const { useState, useEffect } = React;
 
-      <div class="field">
-        <label for="type">Type</label>
-        <select id="type">
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-      </div>
+      // Demo data shown only when the backend can't be reached, so the page is
+      // still fully clickable during a presentation.
+      const seedExpenses = () => ([
+        { id: "d1", category: "Groceries", description: "Trader Joe's", amount: 82.4, expense_date: "2026-07-02", source: "manual" },
+        { id: "d2", category: "Dining", description: "Chipotle", amount: 14.25, expense_date: "2026-07-03", source: "manual" },
+        { id: "d3", category: "Transport", description: "Metro card", amount: 30, expense_date: "2026-07-04", source: "manual" },
+      ]);
 
-      <button type="submit" class="add-btn">Add Entry</button>
-    </form>
+      // The whole home page lives in this one component.
+      function App() {
+        // ---- State: the values that change while the page is open ----
+        const [expenses, setExpenses] = useState([]);   // list of expenses
+        const [loading, setLoading] = useState(true);    // true while first fetch runs
+        const [offline, setOffline] = useState(false);   // backend unreachable?
+        const [error, setError] = useState("");          // message to show the user
+        const [form, setForm] = useState({               // the add-expense form fields
+          category: "Groceries", description: "", amount: "", expense_date: "",
+        });
 
-    <section class="entries">
-      <h2>Transactions</h2>
-      <ul class="entry-list" id="entryList"></ul>
-      <p class="empty-state" id="emptyState">No entries yet. Add one above!</p>
-    </section>
-  </div>
+        // Load expenses once when the page first appears.
+        useEffect(() => { load(); }, []);
 
-  <script>
-    const form = document.getElementById('entryForm');
-    const entryList = document.getElementById('entryList');
-    const emptyState = document.getElementById('emptyState');
-    const totalIncomeEl = document.getElementById('totalIncome');
-    const totalExpenseEl = document.getElementById('totalExpense');
-    const balanceEl = document.getElementById('balance');
-
-    let entries = [];
-
-    function formatMoney(value) {
-      return '$' + value.toFixed(2);
-    }
-
-    function render() {
-      entryList.innerHTML = '';
-
-      let income = 0;
-      let expense = 0;
-
-      entries.forEach((entry, index) => {
-        if (entry.type === 'income') {
-          income += entry.amount;
-        } else {
-          expense += entry.amount;
+        // Fetch expenses from the backend; fall back to demo data if it's down.
+        async function load() {
+          setLoading(true);
+          try {
+            const data = await PennyAPI.getExpenses(DEMO_USER_ID);
+            setExpenses(Array.isArray(data) ? data : []);
+            setOffline(false);
+          } catch {
+            setExpenses(seedExpenses());
+            setOffline(true);
+          }
+          setLoading(false);
         }
 
-        const li = document.createElement('li');
-        li.className = 'entry-item ' + entry.type;
+        // The three summary numbers at the top.
+        const totalSpent = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+        const count = expenses.length;
+        const avg = count ? totalSpent / count : 0;
 
-        li.innerHTML = `
-          <span class="entry-desc">${entry.description}</span>
-          <span class="entry-amount">${entry.type === 'expense' ? '-' : '+'}${formatMoney(entry.amount)}</span>
-          <button class="delete-btn" data-index="${index}" aria-label="Delete entry">&times;</button>
-        `;
+        // Update one form field when the user types or selects. Each input has a
+        // `name` that matches a key in `form`, so we can update them all with this.
+        function handleChange(event) {
+          setForm({ ...form, [event.target.name]: event.target.value });
+        }
 
-        entryList.appendChild(li);
-      });
+        // Handle the "Add Expense" form submission.
+        async function submit(event) {
+          event.preventDefault();   // stop the browser from reloading the page
+          setError("");
 
-      totalIncomeEl.textContent = formatMoney(income);
-      totalExpenseEl.textContent = formatMoney(expense);
-      balanceEl.textContent = formatMoney(income - expense);
+          // Basic check: need a category and a positive amount.
+          const amount = parseFloat(form.amount);
+          if (!form.category || isNaN(amount) || amount <= 0) {
+            setError("Please pick a category and enter an amount greater than 0.");
+            return;
+          }
 
-      emptyState.style.display = entries.length === 0 ? 'block' : 'none';
-    }
+          // Build the object we send to the backend (matches Eva's /expenses route).
+          const payload = {
+            user_id: DEMO_USER_ID,
+            category: form.category,
+            description: form.description.trim(),
+            amount,
+            expense_date: form.expense_date || today(),
+            source: "manual",
+          };
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
+          if (offline) {
+            // No backend: just add it to the on-screen list so the demo still works.
+            const localExpense = { id: "local-" + expenses.length, ...payload };
+            setExpenses([localExpense, ...expenses]);
+          } else {
+            // Save to the database, then reload the list to show it.
+            try {
+              await PennyAPI.addExpense(payload);
+              await load();
+            } catch (err) {
+              setError(err.message);
+              return;
+            }
+          }
 
-      const description = document.getElementById('description').value.trim();
-      const amount = parseFloat(document.getElementById('amount').value);
-      const type = document.getElementById('type').value;
+          // Clear the form (but keep the last category selected for convenience).
+          setForm({ category: form.category, description: "", amount: "", expense_date: "" });
+        }
 
-      if (!description || isNaN(amount) || amount <= 0) return;
+        // Delete one expense (both on screen and in the database).
+        async function remove(id) {
+          // Demo/local rows only exist in the browser, so just drop them.
+          if (offline || String(id).startsWith("local-")) {
+            setExpenses(expenses.filter((e) => e.id !== id));
+            return;
+          }
+          try {
+            await PennyAPI.deleteExpense(id);
+            await load();
+          } catch (err) {
+            setError(err.message);
+          }
+        }
 
-      entries.push({ description, amount, type });
-      form.reset();
-      render();
-    });
+        // ---- What the page looks like ----
+        return (
+          <>
+            <TopBar active="home" />
+            <main className="page">
+              <div className="intro">
+                <h2>Welcome back</h2>
+                <p>Add what you spend and PennyPlan keeps the running totals for you.</p>
+              </div>
 
-    entryList.addEventListener('click', (e) => {
-      if (e.target.classList.contains('delete-btn')) {
-        const index = parseInt(e.target.dataset.index, 10);
-        entries.splice(index, 1);
-        render();
+              {/* Three summary tiles. */}
+              <div className="tiles">
+                <div className="tile bad">
+                  <div className="label">Total Spent</div>
+                  <div className="value">{money(totalSpent)}</div>
+                </div>
+                <div className="tile">
+                  <div className="label">Expenses</div>
+                  <div className="value">{count}</div>
+                </div>
+                <div className="tile accent">
+                  <div className="label">Average Each</div>
+                  <div className="value">{money(avg)}</div>
+                </div>
+              </div>
+
+              {/* Friendly notes about connection state. */}
+              {offline && (
+                <div className="banner info">
+                  Can't reach the backend at {API_BASE}, so this is demo data. Anything you
+                  add stays in the browser only. Start Eva's Flask app to save for real.
+                </div>
+              )}
+              {error && <div className="banner err">{error}</div>}
+
+              <div className="grid-2">
+                {/* Left column: the add-expense form. */}
+                <section className="card">
+                  <div className="section-title">Add an Expense</div>
+                  <form onSubmit={submit}>
+                    <div className="field">
+                      <label htmlFor="category">Category</label>
+                      <select id="category" name="category" value={form.category} onChange={handleChange}>
+                        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="description">Description</label>
+                      <input id="description" name="description" type="text" placeholder="e.g. Coffee run"
+                             value={form.description} onChange={handleChange} />
+                    </div>
+
+                    <div className="field-row">
+                      <div className="field">
+                        <label htmlFor="amount">Amount ($)</label>
+                        <input id="amount" name="amount" type="number" step="0.01" min="0" placeholder="0.00"
+                               value={form.amount} onChange={handleChange} required />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="date">Date</label>
+                        <input id="date" name="expense_date" type="date"
+                               value={form.expense_date} onChange={handleChange} />
+                      </div>
+                    </div>
+
+                    <button className="btn" type="submit">Add Expense</button>
+                  </form>
+                </section>
+
+                {/* Right column: the list of recent expenses. */}
+                <section className="card">
+                  <div className="section-title">Recent Expenses</div>
+                  {loading ? (
+                    <p className="empty">Loading…</p>
+                  ) : count === 0 ? (
+                    <p className="empty">No expenses yet. Add one on the left to get started.</p>
+                  ) : (
+                    <ul className="list">
+                      {expenses.map((e) => (
+                        <li className="list-item" key={e.id}>
+                          <div>
+                            <div>
+                              <strong>{e.description || e.category}</strong>{" "}
+                              <span className="pill">{e.category}</span>
+                            </div>
+                            <div className="meta">{e.expense_date || "—"}</div>
+                          </div>
+                          <span className="amount">{money(e.amount)}</span>
+                          <button className="icon-btn" onClick={() => remove(e.id)} aria-label="Delete">×</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            </main>
+          </>
+        );
       }
-    });
 
-    render();
-  </script>
-</body>
+      // Mount the React app into the <div id="root"> above.
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
 </html>
