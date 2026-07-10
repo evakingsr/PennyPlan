@@ -5,6 +5,7 @@ from routes.reports import reports_bp
 from routes.link import link_bp
 from routes.transactions import transactions_bp
 from routes.auth import auth_bp
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.register_blueprint(expenses_bp)
@@ -28,7 +29,7 @@ def cors_preflight(path=""):
 
 @app.route("/")
 def home():
-    return jsonify({"status": "ok", "message": "PennyPlan backend is running!"})
+    return send_from_directory(".", "index.html")
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
