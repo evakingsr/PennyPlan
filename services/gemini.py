@@ -5,93 +5,192 @@ import re
 import json
 import time
 
+
 load_dotenv()
 
-GEMINI_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash"]
+
+GEMINI_MODELS = [
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+]
+
 MAX_ATTEMPTS = 3
 RETRY_SECONDS = 20
 
 _client = None
 
+
 # Function to get Gemini API Key
 def get_client():
     global _client
+
     if _client is None:
         api_key = os.getenv("GEMINI_API_KEY")
+
         if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not set.")
+            raise RuntimeError(
+                "GEMINI_API_KEY environment variable is not set."
+            )
+
         _client = genai.Client(api_key=api_key)
+
     return _client
+
 
 # Helper function to call the Gemini API with retry logic
 def _call_gemini_with_retry(prompt: str) -> str:
     client = get_client()
+    last_error = None
+
     for model in GEMINI_MODELS:
         for attempt in range(MAX_ATTEMPTS):
             try:
-                response = client.models.generate_content(model=model, contents=prompt)
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                )
+
+                if not response.text:
+                    raise RuntimeError(
+                        f"{model} returned an empty response."
+                    )
+
                 return response.text.strip()
-            except Exception as e:
-                print(f"{model} attempt {attempt + 1} failed: {e}. Retrying in ...")
-                time.sleep(RETRY_SECONDS)
-    raise RuntimeError("All attempts to call Gemini API failed.")
 
-def _build_report_prompt(this_month: dict, last_month: dict) -> str:
+            except Exception as error:
+                last_error = error
+
+                print(
+                    f"{model} attempt {attempt + 1} failed: {error}"
+                )
+
+                if attempt < MAX_ATTEMPTS - 1:
+                    time.sleep(RETRY_SECONDS)
+
+    raise RuntimeError(
+        f"All attempts to call Gemini API failed. Last error: {last_error}"
+    )
+
+
+def _build_report_prompt(
+    this_month: dict,
+    last_month: dict,
+) -> str:
     return f"""
+You are a budgeting assistant for a personal finance app called PennyPlan.
 
-    You are a budgeting assistant for a personal finance app called PennyPlan
-    Here ihs a user's spending data, already aggreated by category.
+Here is a user's spending data, already aggregated by category.
 
-    this month by category (USD): {json.dumps(this_month['by_category'])}
-    this month total: {this_month['total']}
-    last month by category (USD): {json.dumps(last_month['by_category'])}
-    last month total: {last_month['total']}
+This month by category (USD):
+{json.dumps(this_month['by_category'])}
 
-    return ONLY JSON object with exactly these fields, no markdown formatting, no code fences, no extra commentary:
-    {{
-        "summary": "one paragraph overview of this month's spending"
-        "trends": [
-            {{"category": "...", "change_percent": ..., "direction": "up" or "down"}}
-        ]
-        "tips": ["tip 1", "tip 2", "tip 3"]
-    }}
+This month total:
+{this_month['total']}
 
-    Only include a category in "trends" if it changed by 15% or more versus last month.
-    Base "tips" on the categories with the highest spending or the biggest increases.
-    """
+Last month by category (USD):
+{json.dumps(last_month['by_category'])}
+
+Last month total:
+{last_month['total']}
+
+Return ONLY a valid JSON object with exactly these fields.
+Do not use Markdown, code fences, or extra commentary.
+
+{{
+    "summary": "one paragraph overview of this month's spending",
+    "trends": [
+        {{
+            "category": "...",
+            "change_percent": 0,
+            "direction": "up"
+        }}
+    ],
+    "tips": [
+        "tip 1",
+        "tip 2",
+        "tip 3"
+    ]
+}}
+
+The direction value must be either "up" or "down".
+
+Only include a category in "trends" if it changed by 15 percent or more
+versus last month.
+
+Base the tips on the categories with the highest spending or the biggest
+increases.
+"""
+
 
 def _extract_json(raw_text: str) -> dict:
-    cleaned = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw_text.strip())
+    cleaned = re.sub(
+        r"^```(?:json)?\s*|\s*```$",
+        "",
+        raw_text.strip(),
+    )
+
     return json.loads(cleaned)
 
+
 def _fallback_report(this_month: dict) -> dict:
-    top_category = max(this_month['by_category'], key=this_month['by_category'].get, default="spending")
+    top_category = max(
+        this_month["by_category"],
+        key=this_month["by_category"].get,
+        default="spending",
+    )
+
     return {
-        "summary": f"You spent ${this_month['total']} this month, mostly on {top_category}.",
+        "summary": (
+            f"You spent ${this_month['total']} this month, "
+            f"mostly on {top_category}."
+        ),
         "trends": [],
-        "tips": ["Review your largest spending category and look for one recurring cost to cut."],
+        "tips": [
+            (
+                "Review your largest spending category and look "
+                "for one recurring cost to cut."
+            )
+        ],
     }
 
-def generate_report(this_month: dict, last_month: dict) -> dict:
-    prompt = _build_report_prompt(this_month, last_month)
+
+def generate_report(
+    this_month: dict,
+    last_month: dict,
+) -> dict:
+    prompt = _build_report_prompt(
+        this_month,
+        last_month,
+    )
+
     try:
         raw_text = _call_gemini_with_retry(prompt)
         return _extract_json(raw_text)
-    except (RuntimeError, json.JSONDecodeError) as e:
-        print(f"generate_report falling back: {e}")
+
+    except Exception as error:
+        print(f"generate_report falling back: {error}")
         return _fallback_report(this_month)
 
-def categorize_manual_entry(description: str, amount: float) -> str:
+
+def categorize_manual_entry(
+    description: str,
+    amount: float,
+) -> str:
     prompt = f"""
-    Classify this expense into exactly one category from this list:
-    Groceries, Dining, Rent, Utilities, Transportation, Entertainment, Shopping,
-    Health, Subscriptions, Other.
+Classify this expense into exactly one category from this list:
 
-    Expense: "{description}", amount: ${amount}
+Groceries, Dining, Rent, Utilities, Transportation, Entertainment,
+Shopping, Health, Subscriptions, Other.
 
-    Return only the category name, nothing else.
-    """
+Expense: "{description}"
+Amount: ${amount}
+
+Return only the category name, nothing else.
+"""
+
     try:
         return _call_gemini_with_retry(prompt)
-    except RuntimeError:
+
+    except Exception as error:
+        print(f"categorize_manual_entry falling back: {error}")
         return "Other"
