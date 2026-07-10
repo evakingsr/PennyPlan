@@ -6,7 +6,7 @@
 // ============================================================================
 
 // ---- Config ----------------------------------------------------------------
-const API_BASE = "https://baronneuron-doubleigor-4000.codio.io/proxy/5000";
+const API_BASE = "";
 const DEMO_USER_ID = "demo-user";
 
 const CATEGORIES = [
