@@ -31,7 +31,7 @@ function isLoggedIn() {
 }
 function logout() {
   localStorage.removeItem("pennyplan_user_id");
-  window.location.href = "login.html";
+  window.location.href = "/login";
 }
 
 // ---- Small utilities -------------------------------------------------------
@@ -97,23 +97,95 @@ const PennyAPI = {
 // ---- Shared top bar --------------------------------------------------------
 function TopBar({ active }) {
   const h = React.createElement;
-  return h("header", { className: "topbar" },
-    h("div", { className: "brand" },
-      h("div", { className: "row" },
-        h("span", { className: "coin" }, "P"),
-        h("div", null,
-          h("h1", null, "PennyPlan"),
-          h("div", { className: "tagline" }, "Plan Smarter. Spend Better.")
+
+  return h(
+    "header",
+    { className: "topbar" },
+
+    h(
+      "div",
+      { className: "brand" },
+
+      h(
+        "div",
+        { className: "row" },
+
+        h(
+          "span",
+          { className: "coin" },
+          "P"
+        ),
+
+        h(
+          "div",
+          null,
+
+          h(
+            "h1",
+            null,
+            "PennyPlan"
+          ),
+
+          h(
+            "div",
+            { className: "tagline" },
+            "Plan Smarter. Spend Better."
+          )
         )
       )
     ),
-    h("nav", { className: "nav" },
-      h("a", { href: "index.html", className: active === "home" ? "active" : "" }, "Home"),
-      h("a", { href: "analytics.html", className: active === "analytics" ? "active" : "" }, "Analytics"),
-      h("a", { href: "report.html", className: active === "report" ? "active" : "" }, "AI Report"),
+
+    h(
+      "nav",
+      { className: "nav" },
+
+      h(
+        "a",
+        {
+          href: "/",
+          className: active === "home" ? "active" : ""
+        },
+        "Home"
+      ),
+
+      h(
+        "a",
+        {
+          href: "/analytics",
+          className: active === "analytics" ? "active" : ""
+        },
+        "Analytics"
+      ),
+
+      h(
+        "a",
+        {
+          href: "/report",
+          className: active === "report" ? "active" : ""
+        },
+        "AI Report"
+      ),
+
       isLoggedIn()
-        ? h("a", { href: "#", onClick: (e) => { e.preventDefault(); logout(); } }, "Log Out")
-        : h("a", { href: "login.html", className: active === "login" ? "active" : "" }, "Log In")
+        ? h(
+            "a",
+            {
+              href: "#",
+              onClick: (event) => {
+                event.preventDefault();
+                logout();
+              }
+            },
+            "Log Out"
+          )
+        : h(
+            "a",
+            {
+              href: "/login",
+              className: active === "login" ? "active" : ""
+            },
+            "Log In"
+          )
     )
   );
 }
