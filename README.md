@@ -15,16 +15,16 @@ PennyPlan is an AI-powered personal budgeting application that helps users track
 ## How To Use
 
 ### User Input
-![Transaction History](images/TransactionHistory.png)
+![Transaction History](images/Home.png)
 
 ### Expense Visualization
 
-![User Expense chart](images/SpendingChart.png)
+![User Expense chart](images/ChartUpdated.png)
 
 
 ### Spending Report & Budgeting Tips
 
-![AI spending report & Tips](images/AIReport.png)
+![AI spending report & Tips](images/UpdatedReport.png)
 
 ---
 
