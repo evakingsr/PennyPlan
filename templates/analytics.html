@@ -23,6 +23,7 @@
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react">
+      {% raw %}
       const { useState, useEffect } = React;
 
       const seedExpenses = () => ([
@@ -401,6 +402,7 @@
       }
 
       ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+      {% endraw %}
     </script>
   </body>
 </html>

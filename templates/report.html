@@ -24,6 +24,7 @@
     <div id="root"></div>
 
     <script type="text/babel" data-presets="react">
+      {% raw %}
       const { useState } = React;
 
       function getStoredReport(userId) {
@@ -157,6 +158,7 @@
       }
 
       ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+      {% endraw %}
     </script>
   </body>
 </html>
